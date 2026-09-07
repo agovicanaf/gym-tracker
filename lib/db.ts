@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless";
 // Vercel + Neon entegrasyonu kurulduğunda bu env variable otomatik oluşur.
 // Yerelde .env.local dosyasına DATABASE_URL eklenmeli.
 export function getSql() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error(
       "DATABASE_URL tanımlı değil. Vercel Postgres (Neon) entegrasyonunu bağladığınızdan emin olun."

@@ -7,7 +7,7 @@ import { dirname, join } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 if (!connectionString) {
   console.error("HATA: DATABASE_URL ortam değişkeni bulunamadı.");
   console.error("Vercel'den 'vercel env pull .env.local' ile çekebilir ya da .env.local dosyasına elle ekleyebilirsiniz.");
