@@ -47,13 +47,29 @@ GitHub'da yeni bir repo oluşturup bu projeyi push'la.
 
 ### 4. Deploy et
 
-Storage bağlandıktan sonra **Deploy** butonuna bas. Birkaç dakika içinde site yayında olacak (örn: `demir-antrenman.vercel.app`).
+Storage bağlandıktan sonra **Deploy** butonuna bas. Birkaç dakika içinde site yayında olacak (örn: `9214-82.vercel.app`).
 
 ### 5. Veritabanı tablolarını oluştur (tek seferlik)
 
 Site ilk açıldığında Ömer'in sayfasında **"Veritabanını Kur"** butonu görünecek. Bir kere tıklayınca tüm tablolar otomatik oluşur ve bir daha görünmez.
 
 > Alternatif: Kendi bilgisayarından `vercel env pull .env.local` ile bağlantı bilgisini çekip `npm run db:init` çalıştırarak da kurabilirsin.
+
+---
+
+## iPhone'a Uygulama Olarak Ekleme (PWA)
+
+Site App Store'a yüklenen bir uygulama değil, ama **Progressive Web App (PWA)** olarak yapılandırıldığı için iPhone'da tam bir uygulama gibi (kendi ikonuyla, adres çubuğu olmadan, tam ekran) çalışır. Kurulum:
+
+1. Site Vercel'de yayında olmalı (yukarıdaki adımlar tamamlanmış olmalı) — yerelde `localhost` üzerinden bu özellik iOS'ta çalışmaz, gerçek bir `https://` adresi gerekir.
+2. iPhone'da **Safari** ile siteyi aç (Chrome veya başka bir tarayıcı ile değil — "Ana Ekrana Ekle" özelliği iOS'ta yalnızca Safari'de bu şekilde çalışır).
+3. Alt menüdeki **Paylaş** ikonuna dokun (kare içinde yukarı ok).
+4. Açılan listede aşağı kaydırıp **"Ana Ekrana Ekle"**ye dokun.
+5. İsim otomatik olarak "9214.82" gelecek, istersen değiştir, sağ üstten **Ekle**ye dokun.
+
+Ana ekranda beliren ikona dokunduğunda site artık Safari arayüzü olmadan, kendi ikonuyla, tam ekran açılır — bir native uygulama gibi hissettirir. Aynı Postgres veritabanına bağlı olduğu için telefon ve bilgisayardaki veriler her zaman senkronize kalır (2 saniyede bir otomatik güncellenir).
+
+> Not: Bu bir gerçek native iOS uygulaması değil (App Store'da yer almaz, push bildirimleri gibi bazı native özellikler yoktur), ama günlük kullanımda ayırt edilmesi zor bir "uygulama hissi" verir ve ekstra bir geliştirme/yayınlama süreci gerektirmez.
 
 ---
 
@@ -92,6 +108,11 @@ components/
   TopNav.tsx                 → Üst navigasyon
   WorkoutDayCard.tsx          → Antrenman günü kartı + hareket ekleme
   ExerciseCard.tsx             → Hareket kartı + set/tekrar/ağırlık girişi
+  ServiceWorkerRegister.tsx     → PWA servis çalışanı kaydı
+public/
+  manifest.json               → PWA manifest (iPhone'a "Ana Ekrana Ekle" için)
+  sw.js                        → Minimal servis çalışanı (sadece statik varlıklar)
+  icons/                       → Uygulama ikonları (farklı boyutlarda)
 scripts/
   schema.sql                  → Veritabanı şeması
   init-db.mjs                  → Yerel kurulum scripti

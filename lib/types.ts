@@ -34,29 +34,35 @@ export interface ExerciseWithLogs extends Exercise {
 
 export interface StatsResponse {
   summary: {
-    total_sessions: string;
-    total_sets: string;
-    total_volume_kg: string;
-    heaviest_lift: string;
+    // Not: Bu alanlar veritabanından COUNT/SUM/MAX ile geliyor. lib/db.ts'teki
+    // getSql() içinde NUMERIC (OID 1700) ve BIGINT (OID 20) tipleri için özel
+    // bir tip dönüştürücü tanımlı olduğundan bunlar sürücüden JS number olarak
+    // gelir, string olarak değil. Önceki sürümde bu alanlar yanlışlıkla
+    // string olarak tanımlanmıştı; number'a düzeltildi ki tip kontrolleri
+    // gerçek çalışma zamanı davranışıyla eşleşsin.
+    total_sessions: number;
+    total_sets: number;
+    total_volume_kg: number;
+    heaviest_lift: number;
   };
   exerciseProgress: Array<{
     exercise_id: number;
     exercise_name: string;
-    max_weight: string;
-    latest_weight: string;
-    total_sets_logged: string;
+    max_weight: number;
+    latest_weight: number;
+    total_sets_logged: number;
     last_logged: string;
   }>;
   timeSeries: Array<{
     exercise_id: number;
     exercise_name: string;
     log_date: string;
-    max_weight: string;
-    day_volume: string;
+    max_weight: number;
+    day_volume: number;
   }>;
   weeklyVolume: Array<{
     week_start: string;
-    total_volume: string;
+    total_volume: number;
   }>;
 }
 

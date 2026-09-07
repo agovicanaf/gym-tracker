@@ -20,6 +20,8 @@ export default function UserDashboard({
   const [initError, setInitError] = useState<string | null>(null);
   const [addingDay, setAddingDay] = useState(false);
   const [dayName, setDayName] = useState("");
+  const [addDayError, setAddDayError] = useState<string | null>(null);
+  const [addingDaySaving, setAddingDaySaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // silent=true: arka plan polling çağrısı — ağda geçici bir hıçkırık
@@ -106,10 +108,19 @@ export default function UserDashboard({
   async function handleAddDay(e: React.FormEvent) {
     e.preventDefault();
     if (!dayName.trim()) return;
-    await api.createWorkoutDay(user, dayName.trim());
-    setDayName("");
-    setAddingDay(false);
-    await load();
+    setAddingDaySaving(true);
+    setAddDayError(null);
+    try {
+      await api.createWorkoutDay(user, dayName.trim());
+      setDayName("");
+      setAddingDay(false);
+      await load();
+    } catch (e: unknown) {
+      // Formu açık bırakıyoruz, kullanıcı girdiği gün adını kaybetmesin.
+      setAddDayError(e instanceof Error ? e.message : "Gün eklenemedi");
+    } finally {
+      setAddingDaySaving(false);
+    }
   }
 
   // Veritabanı henüz kurulmadıysa kurulum ekranı göster
@@ -208,17 +219,21 @@ export default function UserDashboard({
             placeholder="Gün adı (örn: Push Günü, Bacak Günü)"
             className="w-full bg-surface-raised border border-border rounded-md px-3 py-2 text-text font-body text-sm focus:border-accent outline-none"
           />
+          {addDayError && <p className="text-xs text-accent">{addDayError}</p>}
           <button
             type="submit"
-            disabled={!dayName.trim()}
+            disabled={!dayName.trim() || addingDaySaving}
             className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-body font-medium py-2 rounded-md transition-colors"
           >
-            Ekle
+            {addingDaySaving ? "Ekleniyor…" : "Ekle"}
           </button>
         </form>
       ) : (
         <button
-          onClick={() => setAddingDay(true)}
+          onClick={() => {
+            setAddDayError(null);
+            setAddingDay(true);
+          }}
           className="w-full flex items-center justify-center gap-2 border border-border rounded-lg py-3.5 text-sm text-text font-body font-medium hover:bg-surface transition-colors"
         >
           <Plus size={16} />

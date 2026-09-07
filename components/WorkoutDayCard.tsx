@@ -24,15 +24,20 @@ export default function WorkoutDayCard({
   const [exSets, setExSets] = useState("3");
   const [exReps, setExReps] = useState("8-12");
   const [saving, setSaving] = useState(false);
+  const [exError, setExError] = useState<string | null>(null);
 
   const [editingDay, setEditingDay] = useState(false);
   const [dayNameDraft, setDayNameDraft] = useState(day.name);
   const [savingDayName, setSavingDayName] = useState(false);
+  const [dayNameError, setDayNameError] = useState<string | null>(null);
+  const [deletingDay, setDeletingDay] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleAddExercise(e: React.FormEvent) {
     e.preventDefault();
     if (!exName.trim()) return;
     setSaving(true);
+    setExError(null);
     try {
       await api.createExercise(
         day.id,
@@ -45,6 +50,11 @@ export default function WorkoutDayCard({
       setExReps("8-12");
       setAddingExercise(false);
       onChanged();
+    } catch (e: unknown) {
+      // Formu kapatmıyoruz: kullanıcı girdiği bilgiyi kaybetmesin ve
+      // "Ekle"ye tekrar basabilsin. Sessizce başarısız olup hareketin
+      // hiç eklenmediğini fark etmemesi en kötü senaryo.
+      setExError(e instanceof Error ? e.message : "Hareket eklenemedi");
     } finally {
       setSaving(false);
     }
@@ -52,12 +62,21 @@ export default function WorkoutDayCard({
 
   async function handleDeleteDay() {
     if (!confirm(`"${day.name}" gününü silmek istediğine emin misin? İçindeki tüm hareketler ve kayıtlar silinecek.`)) return;
-    await api.deleteWorkoutDay(day.id);
-    onChanged();
+    setDeletingDay(true);
+    setDeleteError(null);
+    try {
+      await api.deleteWorkoutDay(day.id);
+      onChanged();
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : "Gün silinemedi");
+    } finally {
+      setDeletingDay(false);
+    }
   }
 
   function startEditingDay() {
     setDayNameDraft(day.name);
+    setDayNameError(null);
     setEditingDay(true);
   }
 
@@ -69,10 +88,14 @@ export default function WorkoutDayCard({
       return;
     }
     setSavingDayName(true);
+    setDayNameError(null);
     try {
       await api.renameWorkoutDay(day.id, trimmed);
       setEditingDay(false);
       onChanged();
+    } catch (e: unknown) {
+      // Düzenleme kutusunu açık bırakıyoruz ki kullanıcı tekrar deneyebilsin.
+      setDayNameError(e instanceof Error ? e.message : "Kaydedilemedi");
     } finally {
       setSavingDayName(false);
     }
@@ -82,30 +105,36 @@ export default function WorkoutDayCard({
     <section className="mb-8">
       <div className="flex items-center justify-between mb-3 gap-2">
         {editingDay ? (
-          <form onSubmit={handleSaveDayName} className="flex-1 flex items-center gap-2">
-            <input
-              autoFocus
-              type="text"
-              value={dayNameDraft}
-              onChange={(e) => setDayNameDraft(e.target.value)}
-              onBlur={handleSaveDayName}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setDayNameDraft(day.name);
-                  setEditingDay(false);
-                }
-              }}
-              className="flex-1 min-w-0 bg-surface-raised border border-accent rounded-md px-3 py-1.5 font-display text-xl sm:text-2xl text-text tracking-wide outline-none"
-            />
-            <button
-              type="submit"
-              disabled={savingDayName || !dayNameDraft.trim()}
-              className="p-2 text-accent hover:text-accent-hover disabled:opacity-50 transition-colors shrink-0"
-              aria-label="Kaydet"
-            >
-              <Check size={18} />
-            </button>
-          </form>
+          <div className="flex-1 min-w-0">
+            <form onSubmit={handleSaveDayName} className="flex items-center gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={dayNameDraft}
+                onChange={(e) => setDayNameDraft(e.target.value)}
+                onBlur={handleSaveDayName}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setDayNameDraft(day.name);
+                    setDayNameError(null);
+                    setEditingDay(false);
+                  }
+                }}
+                className="flex-1 min-w-0 bg-surface-raised border border-accent rounded-md px-3 py-1.5 font-display text-xl sm:text-2xl text-text tracking-wide outline-none"
+              />
+              <button
+                type="submit"
+                disabled={savingDayName || !dayNameDraft.trim()}
+                className="p-2 text-accent hover:text-accent-hover disabled:opacity-50 transition-colors shrink-0"
+                aria-label="Kaydet"
+              >
+                <Check size={18} />
+              </button>
+            </form>
+            {dayNameError && (
+              <p className="text-xs text-accent mt-1">{dayNameError}</p>
+            )}
+          </div>
         ) : (
           <button
             onClick={startEditingDay}
@@ -123,12 +152,17 @@ export default function WorkoutDayCard({
         )}
         <button
           onClick={handleDeleteDay}
-          className="p-2 text-text-faint hover:text-accent transition-colors shrink-0"
+          disabled={deletingDay}
+          className="p-2 text-text-faint hover:text-accent transition-colors shrink-0 disabled:opacity-40"
           aria-label="Günü sil"
         >
           <Trash2 size={16} />
         </button>
       </div>
+
+      {deleteError && (
+        <p className="text-xs text-accent mb-2">{deleteError}</p>
+      )}
 
       <div className="space-y-2">
         {day.exercises.map((ex) => (
@@ -185,17 +219,21 @@ export default function WorkoutDayCard({
               />
             </div>
           </div>
+          {exError && <p className="text-xs text-accent">{exError}</p>}
           <button
             type="submit"
             disabled={saving || !exName.trim()}
             className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-body font-medium py-2 rounded-md transition-colors"
           >
-            Ekle
+            {saving ? "Ekleniyor…" : "Ekle"}
           </button>
         </form>
       ) : (
         <button
-          onClick={() => setAddingExercise(true)}
+          onClick={() => {
+            setExError(null);
+            setAddingExercise(true);
+          }}
           className="mt-2 w-full flex items-center justify-center gap-2 border border-dashed border-border rounded-lg py-3 text-sm text-text-muted hover:text-text hover:border-border-strong transition-colors font-body"
         >
           <Plus size={15} />

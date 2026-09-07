@@ -45,6 +45,10 @@ export default function ExerciseCard({
   const [savingLogId, setSavingLogId] = useState<number | null>(null);
   const [editLogError, setEditLogError] = useState<string | null>(null);
 
+  const [deletingExercise, setDeletingExercise] = useState(false);
+  const [deleteExError, setDeleteExError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
   const lastLog = exercise.logs?.[0];
 
   const refreshLogs = useCallback(
@@ -74,8 +78,10 @@ export default function ExerciseCard({
   // Çoklu cihaz senkronizasyonu: bu kart açıkken (geçmiş kayıtlar görünürken)
   // başka bir cihazdan eklenen/silinen/değiştirilen setlerin de kısa sürede
   // burada görünmesi için her 2 saniyede bir arka planda tazeliyoruz. Kullanıcı
-  // tam o anda bir kaydı düzenliyor veya siliyorsa (editingLogId/deletingLogId
-  // dolu) araya girip taslağını bozmamak için o turu atlıyoruz.
+  // tam o anda bir kaydı düzenliyor, siliyor veya yeni set ekliyorsa
+  // (editingLogId/deletingLogId/saving dolu) araya girip hem taslağını
+  // bozmamak hem de henüz sunucuya yazılmamış eski veriyle yarışmamak için
+  // o turu atlıyoruz.
   useEffect(() => {
     if (!expanded) return;
 
@@ -83,11 +89,12 @@ export default function ExerciseCard({
       if (document.visibilityState !== "visible") return;
       if (editingLogId !== null) return;
       if (deletingLogId !== null) return;
+      if (saving) return;
       refreshLogs(false);
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [expanded, editingLogId, deletingLogId, refreshLogs]);
+  }, [expanded, editingLogId, deletingLogId, saving, refreshLogs]);
 
   async function handleAddSet() {
     const w = parseFloat(weight.replace(",", "."));
@@ -180,8 +187,16 @@ export default function ExerciseCard({
 
   async function handleDeleteExercise() {
     if (!confirm(`"${exercise.name}" hareketini silmek istediğine emin misin? Tüm kayıtları silinecek.`)) return;
-    await api.deleteExercise(exercise.id);
-    onDeleted();
+    setDeletingExercise(true);
+    setDeleteExError(null);
+    try {
+      await api.deleteExercise(exercise.id);
+      onDeleted();
+    } catch (e: unknown) {
+      setDeleteExError(e instanceof Error ? e.message : "Hareket silinemedi");
+    } finally {
+      setDeletingExercise(false);
+    }
   }
 
   function startEditing() {
@@ -196,6 +211,7 @@ export default function ExerciseCard({
     const trimmedName = editName.trim();
     if (!trimmedName) return;
     setSavingEdit(true);
+    setEditError(null);
     try {
       await api.updateExercise(exercise.id, {
         name: trimmedName,
@@ -204,6 +220,9 @@ export default function ExerciseCard({
       });
       setEditing(false);
       onLogAdded();
+    } catch (e: unknown) {
+      // Formu açık bırakıyoruz ki kullanıcı değişikliklerini kaybetmesin.
+      setEditError(e instanceof Error ? e.message : "Kaydedilemedi");
     } finally {
       setSavingEdit(false);
     }
@@ -268,13 +287,14 @@ export default function ExerciseCard({
               />
             </div>
           </div>
+          {editError && <p className="text-xs text-accent">{editError}</p>}
           <button
             type="submit"
             disabled={savingEdit || !editName.trim()}
             className="w-full flex items-center justify-center gap-1.5 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-body font-medium py-2 rounded-md transition-colors"
           >
             <Check size={15} />
-            Kaydet
+            {savingEdit ? "Kaydediliyor…" : "Kaydet"}
           </button>
         </form>
       ) : (
@@ -303,6 +323,9 @@ export default function ExerciseCard({
                   </span>
                 )}
               </p>
+              {deleteExError && (
+                <p className="text-xs text-accent mt-1">{deleteExError}</p>
+              )}
             </div>
           </button>
           <div className="flex items-center gap-1 shrink-0">
@@ -315,7 +338,8 @@ export default function ExerciseCard({
             </button>
             <button
               onClick={handleDeleteExercise}
-              className="p-2 text-text-faint hover:text-accent transition-colors"
+              disabled={deletingExercise}
+              className="p-2 text-text-faint hover:text-accent transition-colors disabled:opacity-40"
               aria-label="Hareketi sil"
             >
               <Trash2 size={15} />
