@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS workout_days (
   id SERIAL PRIMARY KEY,
-  user_id TEXT NOT NULL CHECK (user_id IN ('omer', 'efehan')),
+  user_id TEXT NOT NULL CHECK (user_id IN ('omer')),
   name TEXT NOT NULL,              -- örn: "Push Günü", "Bacak Günü"
   day_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS exercises (
 CREATE TABLE IF NOT EXISTS set_logs (
   id SERIAL PRIMARY KEY,
   exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
-  user_id TEXT NOT NULL CHECK (user_id IN ('omer', 'efehan')),
+  user_id TEXT NOT NULL CHECK (user_id IN ('omer')),
   logged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   set_number INTEGER NOT NULL,
   weight_kg NUMERIC(6,2) NOT NULL,

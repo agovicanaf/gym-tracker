@@ -26,11 +26,38 @@ export async function GET(req: NextRequest) {
     ORDER BY e.exercise_order ASC, e.id ASC
   `;
 
+  // Her hareketin geçmiş setlerini tek sorguda çekip exercise_id'ye göre
+  // grupluyoruz. Bu, ExerciseCard'daki "son kayıt" metni ve PR rozeti için
+  // gerekli — onlar exercise.logs alanına bakıyor.
+  const logs = await sql`
+    SELECT sl.* FROM set_logs sl
+    JOIN exercises e ON sl.exercise_id = e.id
+    JOIN workout_days d ON e.workout_day_id = d.id
+    WHERE d.user_id = ${user}
+    ORDER BY sl.logged_at DESC, sl.set_number DESC
+  `;
+
+  const logsByExercise = new Map<number, Record<string, unknown>[]>();
+  for (const log of logs as Record<string, unknown>[]) {
+    const exId = Number(log.exercise_id);
+    const list = logsByExercise.get(exId);
+    if (list) {
+      list.push(log);
+    } else {
+      logsByExercise.set(exId, [log]);
+    }
+  }
+
   const result = days.map((day: Record<string, unknown>) => ({
     ...day,
-    exercises: exercises.filter(
-      (ex: Record<string, unknown>) => Number(ex.workout_day_id) === Number(day.id)
-    ),
+    exercises: exercises
+      .filter(
+        (ex: Record<string, unknown>) => Number(ex.workout_day_id) === Number(day.id)
+      )
+      .map((ex: Record<string, unknown>) => ({
+        ...ex,
+        logs: logsByExercise.get(Number(ex.id)) ?? [],
+      })),
   }));
 
   return NextResponse.json(result);

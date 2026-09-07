@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getSuggestions, type ExerciseSuggestion } from "@/lib/exercise-library";
+import { getSuggestions } from "@/lib/exercise-library";
+
+const LISTBOX_ID = "exercise-autocomplete-listbox";
 
 export default function ExerciseAutocomplete({
   value,
@@ -78,16 +80,26 @@ export default function ExerciseAutocomplete({
         role="combobox"
         aria-expanded={open && suggestions.length > 0}
         aria-autocomplete="list"
+        aria-controls={LISTBOX_ID}
+        aria-activedescendant={
+          activeIndex >= 0 ? `${LISTBOX_ID}-option-${activeIndex}` : undefined
+        }
         className="w-full bg-surface-raised border border-border rounded-md px-3 py-2 text-text font-body text-sm focus:border-accent outline-none"
       />
 
       {open && suggestions.length > 0 && (
         <ul
+          id={LISTBOX_ID}
           role="listbox"
           className="absolute z-20 mt-1.5 w-full bg-surface-raised border border-border rounded-md shadow-lg overflow-hidden max-h-64 overflow-y-auto"
         >
           {suggestions.map((s, i) => (
-            <li key={`${s.group}-${s.name}`} role="option" aria-selected={i === activeIndex}>
+            <li
+              key={`${s.group}-${s.name}`}
+              id={`${LISTBOX_ID}-option-${i}`}
+              role="option"
+              aria-selected={i === activeIndex}
+            >
               <button
                 type="button"
                 onMouseDown={(e) => {

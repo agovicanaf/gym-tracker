@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "DEMİR | Antrenman Takip",
-  description: "Ömer ve Efehan için kişisel antrenman ve ağırlık takip sistemi",
+  description: "Ömer için kişisel antrenman ve ağırlık takip sistemi",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

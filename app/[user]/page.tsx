@@ -122,9 +122,13 @@ export default function UserDashboard({
       {error && <p className="text-sm text-accent mb-4 font-body">{error}</p>}
 
       {days.length === 0 && !addingDay && (
-        <div className="text-center py-16 border border-dashed border-border rounded-lg">
-          <p className="text-text-muted font-body text-sm mb-4">
+        <div className="text-center py-16 border border-dashed border-border rounded-lg px-6">
+          <p className="text-text-muted font-body text-sm mb-2">
             Henüz bir antrenman günü eklemedin.
+          </p>
+          <p className="text-text-faint font-body text-xs">
+            Önce aşağıdan bir gün ekle (örn. Push, Pull, Bacak) → sonra o güne
+            hareket ekle → sonra set/tekrar/ağırlık gir.
           </p>
         </div>
       )}

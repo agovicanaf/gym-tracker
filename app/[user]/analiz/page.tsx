@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import Link from "next/link";
 import { Loader2, Flame, Weight, CalendarCheck, TrendingUp } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -113,10 +114,16 @@ export default function AnalizPage({
 
       {!hasData ? (
         <div className="text-center py-16 border border-dashed border-border rounded-lg">
-          <p className="text-text-muted font-body text-sm">
+          <p className="text-text-muted font-body text-sm mb-4">
             Henüz kayıtlı veri yok. Program sayfasından set eklemeye başla,
             burada analizini göreceksin.
           </p>
+          <Link
+            href={`/${user}`}
+            className="inline-flex items-center gap-2 text-sm font-body font-medium text-accent hover:text-accent-hover transition-colors"
+          >
+            Programa git →
+          </Link>
         </div>
       ) : (
         <>
@@ -145,11 +152,16 @@ export default function AnalizPage({
             />
           </div>
 
-          {weeklyChartData.length > 1 && (
+          {weeklyChartData.length > 0 && (
             <div className="mb-8">
               <h2 className="font-display text-2xl text-text mb-3">
                 Haftalık Hacim Trendi
               </h2>
+              {weeklyChartData.length === 1 && (
+                <p className="text-xs text-text-faint font-body mb-2">
+                  Trend çizgisi için en az 2 farklı hafta gerekiyor — şimdilik tek haftan burada.
+                </p>
+              )}
               <div className="border border-border rounded-lg bg-surface p-4 h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyChartData}>

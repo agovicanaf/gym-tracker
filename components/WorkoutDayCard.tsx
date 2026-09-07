@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, Pencil, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import ExerciseCard from "@/components/ExerciseCard";
 import ExerciseAutocomplete from "@/components/ExerciseAutocomplete";
@@ -24,6 +24,10 @@ export default function WorkoutDayCard({
   const [exSets, setExSets] = useState("3");
   const [exReps, setExReps] = useState("8-12");
   const [saving, setSaving] = useState(false);
+
+  const [editingDay, setEditingDay] = useState(false);
+  const [dayNameDraft, setDayNameDraft] = useState(day.name);
+  const [savingDayName, setSavingDayName] = useState(false);
 
   async function handleAddExercise(e: React.FormEvent) {
     e.preventDefault();
@@ -52,15 +56,74 @@ export default function WorkoutDayCard({
     onChanged();
   }
 
+  function startEditingDay() {
+    setDayNameDraft(day.name);
+    setEditingDay(true);
+  }
+
+  async function handleSaveDayName(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = dayNameDraft.trim();
+    if (!trimmed || trimmed === day.name) {
+      setEditingDay(false);
+      return;
+    }
+    setSavingDayName(true);
+    try {
+      await api.renameWorkoutDay(day.id, trimmed);
+      setEditingDay(false);
+      onChanged();
+    } finally {
+      setSavingDayName(false);
+    }
+  }
+
   return (
     <section className="mb-8">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-display text-3xl text-text tracking-wide">
-          {day.name}
-        </h2>
+      <div className="flex items-center justify-between mb-3 gap-2">
+        {editingDay ? (
+          <form onSubmit={handleSaveDayName} className="flex-1 flex items-center gap-2">
+            <input
+              autoFocus
+              type="text"
+              value={dayNameDraft}
+              onChange={(e) => setDayNameDraft(e.target.value)}
+              onBlur={handleSaveDayName}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setDayNameDraft(day.name);
+                  setEditingDay(false);
+                }
+              }}
+              className="flex-1 min-w-0 bg-surface-raised border border-accent rounded-md px-3 py-1.5 font-display text-2xl text-text tracking-wide outline-none"
+            />
+            <button
+              type="submit"
+              disabled={savingDayName || !dayNameDraft.trim()}
+              className="p-2 text-accent hover:text-accent-hover disabled:opacity-50 transition-colors shrink-0"
+              aria-label="Kaydet"
+            >
+              <Check size={18} />
+            </button>
+          </form>
+        ) : (
+          <button
+            onClick={startEditingDay}
+            className="group/title flex items-center gap-2 min-w-0 text-left"
+            aria-label="Gün adını düzenle"
+          >
+            <h2 className="font-display text-3xl text-text tracking-wide truncate">
+              {day.name}
+            </h2>
+            <Pencil
+              size={14}
+              className="text-text-faint opacity-60 sm:opacity-0 sm:group-hover/title:opacity-100 transition-opacity shrink-0"
+            />
+          </button>
+        )}
         <button
           onClick={handleDeleteDay}
-          className="p-2 text-text-faint hover:text-accent transition-colors"
+          className="p-2 text-text-faint hover:text-accent transition-colors shrink-0"
           aria-label="Günü sil"
         >
           <Trash2 size={16} />

@@ -35,13 +35,12 @@ export function getSql() {
   });
 }
 
-export type User = "omer" | "efehan";
+export type User = "omer";
 
 export const USER_LABELS: Record<User, string> = {
   omer: "Ömer",
-  efehan: "Efehan",
 };
 
 export function isValidUser(value: string): value is User {
-  return value === "omer" || value === "efehan";
+  return value === "omer";
 }

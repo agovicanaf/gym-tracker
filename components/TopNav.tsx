@@ -11,7 +11,7 @@ export default function TopNav({ user }: { user: User }) {
   return (
     <header className="sticky top-0 z-10 bg-bg/95 backdrop-blur border-b border-border">
       <div className="max-w-5xl mx-auto px-5 sm:px-8 flex items-center justify-between h-16">
-        <Link href="/" className="font-display text-2xl tracking-wide text-text hover:text-accent transition-colors">
+        <Link href={`/${user}`} className="font-display text-2xl tracking-wide text-text hover:text-accent transition-colors">
           DEMİR
         </Link>
 
