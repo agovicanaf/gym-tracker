@@ -22,15 +22,23 @@ export default function UserDashboard({
   const [dayName, setDayName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const data = await api.getWorkoutDays(user);
-      setDays(data);
-      setError(null);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Yüklenemedi");
-    }
-  }, [user]);
+  // silent=true: arka plan polling çağrısı — ağda geçici bir hıçkırık
+  // olursa kullanıcıyı kırmızı hata mesajıyla rahatsız etmiyoruz, bir
+  // sonraki 2 saniyelik denemede zaten kendi kendine düzelir.
+  const load = useCallback(
+    async (silent = false) => {
+      try {
+        const data = await api.getWorkoutDays(user);
+        setDays(data);
+        setError(null);
+      } catch (e: unknown) {
+        if (!silent) {
+          setError(e instanceof Error ? e.message : "Yüklenemedi");
+        }
+      }
+    },
+    [user]
+  );
 
   useEffect(() => {
     async function bootstrap() {
@@ -44,6 +52,38 @@ export default function UserDashboard({
     }
     bootstrap();
   }, [load]);
+
+  // Çoklu cihaz senkronizasyonu: örneğin telefondan bir set eklendiğinde,
+  // bilgisayarda açık duran bu sayfa da kısa süre içinde güncellensin diye
+  // her 2 saniyede bir arka planda veriyi tazeliyoruz. Sayfa görünür değilken
+  // (başka bir sekmedeyken) boşuna istek atmamak için visibilitychange'e
+  // bakıyoruz. setDays yeni veriyle çağrılsa bile WorkoutDayCard/ExerciseCard
+  // bileşenleri key={id} sayesinde yeniden mount olmuyor, dolayısıyla o an
+  // bir formu doldurmakta olan kullanıcının kendi local state'i (örn. gün
+  // adını düzenlerken yazdığı taslak metin) bu yenilemeden etkilenmiyor.
+  useEffect(() => {
+    if (!dbReady) return;
+
+    let cancelled = false;
+    const POLL_MS = 2000;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (cancelled) return;
+      load(true);
+    }, POLL_MS);
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") load(true);
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [dbReady, load]);
 
   async function handleInit() {
     setInitializing(true);
@@ -109,12 +149,12 @@ export default function UserDashboard({
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-5 sm:px-8 py-8">
-      <div className="mb-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 pb-12">
+      <div className="mb-6 sm:mb-8">
         <p className="text-[11px] tracking-[0.2em] text-text-muted font-body mb-1">
           HAFTALIK PROGRAM
         </p>
-        <h1 className="font-display text-4xl text-text">
+        <h1 className="font-display text-3xl sm:text-4xl text-text">
           {USER_LABELS[user]}&apos;in Antrenmanı
         </h1>
       </div>

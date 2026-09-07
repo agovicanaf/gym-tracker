@@ -82,6 +82,22 @@ export const api = {
       body: JSON.stringify(data),
     }).then((r) => handle<SetLog>(r)),
 
+  updateSetLog: (
+    id: number,
+    data: Partial<{
+      weight_kg: number;
+      reps: number;
+      rpe: number | null;
+      notes: string | null;
+      logged_at: string;
+    }>
+  ) =>
+    fetch(`/api/set-logs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then((r) => handle<SetLog>(r)),
+
   deleteSetLog: (id: number) =>
     fetch(`/api/set-logs/${id}`, { method: "DELETE" }).then((r) => handle(r)),
 

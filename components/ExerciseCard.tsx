@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, TrendingUp, ChevronDown, ChevronUp, Pencil, X, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import type { ExerciseWithLogs, SetLog } from "@/lib/types";
@@ -39,23 +39,55 @@ export default function ExerciseCard({
 
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
 
+  const [editingLogId, setEditingLogId] = useState<number | null>(null);
+  const [editLogWeight, setEditLogWeight] = useState("");
+  const [editLogReps, setEditLogReps] = useState("");
+  const [savingLogId, setSavingLogId] = useState<number | null>(null);
+  const [editLogError, setEditLogError] = useState<string | null>(null);
+
   const lastLog = exercise.logs?.[0];
+
+  const refreshLogs = useCallback(
+    async (showLoading: boolean) => {
+      if (showLoading) setLoadingLogs(true);
+      try {
+        const data = await api.getSetLogs(exercise.id);
+        setLogs(data);
+      } catch {
+        if (showLoading) setLogs([]);
+        // sessiz arka plan yenilemesinde hata olursa mevcut listeyi koru
+      } finally {
+        if (showLoading) setLoadingLogs(false);
+      }
+    },
+    [exercise.id]
+  );
 
   async function toggleExpand() {
     const next = !expanded;
     setExpanded(next);
     if (next && logs === null) {
-      setLoadingLogs(true);
-      try {
-        const data = await api.getSetLogs(exercise.id);
-        setLogs(data);
-      } catch {
-        setLogs([]);
-      } finally {
-        setLoadingLogs(false);
-      }
+      await refreshLogs(true);
     }
   }
+
+  // Çoklu cihaz senkronizasyonu: bu kart açıkken (geçmiş kayıtlar görünürken)
+  // başka bir cihazdan eklenen/silinen/değiştirilen setlerin de kısa sürede
+  // burada görünmesi için her 2 saniyede bir arka planda tazeliyoruz. Kullanıcı
+  // tam o anda bir kaydı düzenliyor veya siliyorsa (editingLogId/deletingLogId
+  // dolu) araya girip taslağını bozmamak için o turu atlıyoruz.
+  useEffect(() => {
+    if (!expanded) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (editingLogId !== null) return;
+      if (deletingLogId !== null) return;
+      refreshLogs(false);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [expanded, editingLogId, deletingLogId, refreshLogs]);
 
   async function handleAddSet() {
     const w = parseFloat(weight.replace(",", "."));
@@ -104,6 +136,45 @@ export default function ExerciseCard({
       // sessizce yok say, kullanıcı tekrar deneyebilir
     } finally {
       setDeletingLogId(null);
+    }
+  }
+
+  function startEditingLog(log: SetLog) {
+    setEditingLogId(log.id);
+    setEditLogWeight(String(log.weight_kg));
+    setEditLogReps(String(log.reps));
+    setEditLogError(null);
+  }
+
+  function cancelEditingLog() {
+    setEditingLogId(null);
+    setEditLogError(null);
+  }
+
+  async function handleSaveLogEdit(log: SetLog) {
+    const w = parseFloat(editLogWeight.replace(",", "."));
+    const r = parseInt(editLogReps, 10);
+    if (isNaN(w) || w <= 0) {
+      setEditLogError("Geçerli bir ağırlık girin");
+      return;
+    }
+    if (isNaN(r) || r <= 0) {
+      setEditLogError("Geçerli bir tekrar sayısı girin");
+      return;
+    }
+    setEditLogError(null);
+    setSavingLogId(log.id);
+    try {
+      const updated = await api.updateSetLog(log.id, { weight_kg: w, reps: r });
+      setLogs((prev) =>
+        prev ? prev.map((l) => (l.id === log.id ? updated : l)) : null
+      );
+      setEditingLogId(null);
+      onLogAdded();
+    } catch (e: unknown) {
+      setEditLogError(e instanceof Error ? e.message : "Kaydedilemedi");
+    } finally {
+      setSavingLogId(null);
     }
   }
 
@@ -307,27 +378,95 @@ export default function ExerciseCard({
               <p className="text-[11px] text-text-faint font-body mb-2">
                 GEÇMİŞ KAYITLAR
               </p>
-              {logs.slice(0, 8).map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between text-sm py-1.5 px-2.5 rounded bg-surface/60 group"
-                >
-                  <span className="text-text-muted text-xs w-16 shrink-0">
-                    {formatDate(log.logged_at)}
-                  </span>
-                  <span className="text-text font-body flex-1">
-                    {log.weight_kg}kg × {log.reps} tekrar
-                  </span>
-                  <button
-                    onClick={() => handleDeleteLog(log.id)}
-                    disabled={deletingLogId === log.id}
-                    className="p-1 -m-1 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 text-text-faint hover:text-accent transition-opacity shrink-0 disabled:opacity-30"
-                    aria-label="Kaydı sil"
+              {logs.slice(0, 8).map((log) =>
+                editingLogId === log.id ? (
+                  <div
+                    key={log.id}
+                    className="rounded bg-surface-raised border border-accent px-2.5 py-2 space-y-2"
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-muted text-xs w-16 shrink-0">
+                        {formatDate(log.logged_at)}
+                      </span>
+                      <input
+                        autoFocus
+                        type="text"
+                        inputMode="decimal"
+                        value={editLogWeight}
+                        onChange={(e) => setEditLogWeight(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") cancelEditingLog();
+                          if (e.key === "Enter") handleSaveLogEdit(log);
+                        }}
+                        placeholder="kg"
+                        className="w-16 bg-surface border border-border rounded-md px-2 py-1.5 text-text font-body text-sm focus:border-accent outline-none"
+                      />
+                      <span className="text-text-faint text-xs shrink-0">kg ×</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={editLogReps}
+                        onChange={(e) => setEditLogReps(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") cancelEditingLog();
+                          if (e.key === "Enter") handleSaveLogEdit(log);
+                        }}
+                        placeholder="tekrar"
+                        className="w-16 bg-surface border border-border rounded-md px-2 py-1.5 text-text font-body text-sm focus:border-accent outline-none"
+                      />
+                      <div className="flex items-center gap-1 ml-auto shrink-0">
+                        <button
+                          onClick={() => handleSaveLogEdit(log)}
+                          disabled={savingLogId === log.id}
+                          className="p-2 text-accent hover:text-accent-hover disabled:opacity-50 transition-colors"
+                          aria-label="Kaydı güncelle"
+                        >
+                          <Check size={16} />
+                        </button>
+                        <button
+                          onClick={cancelEditingLog}
+                          className="p-2 text-text-faint hover:text-text transition-colors"
+                          aria-label="Vazgeç"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    {editLogError && (
+                      <p className="text-xs text-accent">{editLogError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between text-sm py-1.5 px-2.5 rounded bg-surface/60 group"
+                  >
+                    <span className="text-text-muted text-xs w-16 shrink-0">
+                      {formatDate(log.logged_at)}
+                    </span>
+                    <span className="text-text font-body flex-1">
+                      {log.weight_kg}kg × {log.reps} tekrar
+                    </span>
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => startEditingLog(log)}
+                        className="p-2 -m-0.5 text-text-faint hover:text-accent transition-colors"
+                        aria-label="Kaydı düzenle"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLog(log.id)}
+                        disabled={deletingLogId === log.id}
+                        className="p-2 -m-0.5 text-text-faint hover:text-accent transition-colors disabled:opacity-30"
+                        aria-label="Kaydı sil"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
             </div>
           ) : (
             <p className="text-xs text-text-faint">Henüz kayıt yok. İlk seti ekle.</p>

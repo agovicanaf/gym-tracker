@@ -1,4 +1,4 @@
-# DEMİR — Kişisel Antrenman Takip Sistemi
+# 9214.82 — Kişisel Antrenman Takip Sistemi
 
 Ömer için özel yapılmış, haftalık antrenman programı ve ağırlık takip sistemi. Next.js + Postgres ile kurulmuştur, Vercel'de ücretsiz olarak yayınlanabilir.
 

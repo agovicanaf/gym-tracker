@@ -95,7 +95,7 @@ export default function WorkoutDayCard({
                   setEditingDay(false);
                 }
               }}
-              className="flex-1 min-w-0 bg-surface-raised border border-accent rounded-md px-3 py-1.5 font-display text-2xl text-text tracking-wide outline-none"
+              className="flex-1 min-w-0 bg-surface-raised border border-accent rounded-md px-3 py-1.5 font-display text-xl sm:text-2xl text-text tracking-wide outline-none"
             />
             <button
               type="submit"
@@ -112,7 +112,7 @@ export default function WorkoutDayCard({
             className="group/title flex items-center gap-2 min-w-0 text-left"
             aria-label="Gün adını düzenle"
           >
-            <h2 className="font-display text-3xl text-text tracking-wide truncate">
+            <h2 className="font-display text-2xl sm:text-3xl text-text tracking-wide truncate">
               {day.name}
             </h2>
             <Pencil

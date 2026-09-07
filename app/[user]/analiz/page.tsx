@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import Link from "next/link";
 import { Loader2, Flame, Weight, CalendarCheck, TrendingUp } from "lucide-react";
 import {
@@ -53,21 +53,55 @@ export default function AnalizPage({
   const [selectedExercise, setSelectedExercise] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const loadStats = useCallback(
+    (isFirstLoad: boolean) => {
+      api
+        .getStats(user)
+        .then((data) => {
+          setStats(data);
+          setError(null);
+          // Seçili hareket sekmesini sadece ilk yüklemede otomatik seçiyoruz;
+          // sonraki arka plan yenilemelerinde kullanıcının seçtiği sekmeyi
+          // (varsa) koruyoruz, yoksa her 2 saniyede bir ilk sekmeye zıplardı.
+          if (isFirstLoad && data.exerciseProgress.length > 0) {
+            setSelectedExercise(data.exerciseProgress[0].exercise_id);
+          }
+        })
+        .catch((e: unknown) => {
+          if (isFirstLoad) {
+            setError(e instanceof Error ? e.message : "Yüklenemedi");
+          }
+        });
+    },
+    [user]
+  );
+
   useEffect(() => {
-    api
-      .getStats(user)
-      .then((data) => {
-        setStats(data);
-        if (data.exerciseProgress.length > 0) {
-          setSelectedExercise(data.exerciseProgress[0].exercise_id);
-        }
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Yüklenemedi"));
-  }, [user]);
+    loadStats(true);
+  }, [loadStats]);
+
+  // Çoklu cihaz senkronizasyonu: mobilden eklenen yeni setler analiz
+  // panelindeki grafik ve istatistiklere de 2 saniye içinde yansısın.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      loadStats(false);
+    }, 2000);
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") loadStats(false);
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [loadStats]);
 
   if (error) {
     return (
-      <div className="max-w-2xl mx-auto px-5 py-16 text-center">
+      <div className="max-w-2xl mx-auto px-4 sm:px-8 py-16 text-center">
         <p className="text-accent font-body text-sm">{error}</p>
       </div>
     );
@@ -102,12 +136,12 @@ export default function AnalizPage({
     }));
 
   return (
-    <div className="max-w-2xl mx-auto px-5 sm:px-8 py-8">
-      <div className="mb-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 pb-12">
+      <div className="mb-6 sm:mb-8">
         <p className="text-[11px] tracking-[0.2em] text-text-muted font-body mb-1">
           ANALİZ PANELİ
         </p>
-        <h1 className="font-display text-4xl text-text">
+        <h1 className="font-display text-3xl sm:text-4xl text-text">
           {USER_LABELS[user]}&apos;in İlerlemesi
         </h1>
       </div>
