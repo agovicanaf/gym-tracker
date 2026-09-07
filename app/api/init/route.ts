@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { readFileSync } from "fs";
-import { join } from "path";
 import { getSql } from "@/lib/db";
+import { SCHEMA_SQL, splitStatements } from "@/lib/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   try {
     const sql = getSql();
-    const schemaPath = join(process.cwd(), "scripts", "schema.sql");
-    const schema = readFileSync(schemaPath, "utf-8");
-
-    const statements = schema
-      .split(";")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith("--"));
+    const statements = splitStatements(SCHEMA_SQL);
 
     for (const statement of statements) {
       await sql.query(statement);

@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
 
   const result = days.map((day: Record<string, unknown>) => ({
     ...day,
-    exercises: exercises.filter((ex: Record<string, unknown>) => ex.workout_day_id === day.id),
+    exercises: exercises.filter(
+      (ex: Record<string, unknown>) => Number(ex.workout_day_id) === Number(day.id)
+    ),
   }));
 
   return NextResponse.json(result);
