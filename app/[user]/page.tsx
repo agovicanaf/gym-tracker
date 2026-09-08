@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, use } from "react";
 import { Plus, X, Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, NeedsInitError } from "@/lib/api";
 import WorkoutDayCard from "@/components/WorkoutDayCard";
 import type { WorkoutDayWithExercises } from "@/lib/types";
 import { USER_LABELS, type User } from "@/lib/db";
@@ -32,8 +32,13 @@ export default function UserDashboard({
       try {
         const data = await api.getWorkoutDays(user);
         setDays(data);
+        setDbReady(true);
         setError(null);
       } catch (e: unknown) {
+        if (e instanceof NeedsInitError) {
+          setDbReady(false);
+          return;
+        }
         if (!silent) {
           setError(e instanceof Error ? e.message : "Yüklenemedi");
         }
@@ -42,17 +47,15 @@ export default function UserDashboard({
     [user]
   );
 
+  // Önceden burada önce /api/init'e (checkInit) sonra /api/workout-days'e
+  // sırayla istek atılıyordu — iki ayrı ağ round-trip'i art arda bekleniyor,
+  // sayfa açılışında spinner'ın gereğinden uzun dönmesine yol açıyordu.
+  // Artık doğrudan getWorkoutDays çağrılıyor; tablolar henüz kurulmamışsa
+  // sunucu bunu tek yanıtta (409 + needsInit) bildiriyor ve load() bunu
+  // yakalayıp kurulum ekranına yönlendiriyor. Normal durumda (kurulum
+  // tamamlanmışsa, yani neredeyse her zaman) tek istek yeterli.
   useEffect(() => {
-    async function bootstrap() {
-      try {
-        const { ready } = await api.checkInit();
-        setDbReady(ready);
-        if (ready) await load();
-      } catch {
-        setDbReady(false);
-      }
-    }
-    bootstrap();
+    load();
   }, [load]);
 
   // Çoklu cihaz senkronizasyonu: örneğin telefondan bir set eklendiğinde,

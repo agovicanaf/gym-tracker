@@ -1,8 +1,22 @@
 import type { WorkoutDayWithExercises, SetLog, StatsResponse } from "@/lib/types";
 
+// Veritabanı tabloları henüz kurulmamışken /api/workout-days'in döndüğü
+// özel durumu (409 + needsInit:true) ayırt etmek için kullanılıyor.
+// Böylece sayfa açılışında ayrı bir /api/init GET isteği yapmaya gerek
+// kalmıyor — checkInit ve getWorkoutDays tek isteğe indi, açılış hızlandı.
+export class NeedsInitError extends Error {
+  constructor() {
+    super("Veritabanı henüz kurulmamış");
+    this.name = "NeedsInitError";
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if (res.status === 409 && body?.needsInit) {
+      throw new NeedsInitError();
+    }
     throw new Error(body.error ?? `İstek başarısız (${res.status})`);
   }
   return res.json();
