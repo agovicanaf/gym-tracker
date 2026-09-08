@@ -39,12 +39,26 @@ export default function UserDashboard({
           setDbReady(false);
           return;
         }
+        // Genel bir hata (ağ, sunucu 500 vb.) durumunda dbReady'i ve days'i
+        // kesin değerlere çekiyoruz. Aksi halde ilk yüklemede bu dal
+        // tetiklenirse "dbReady === null || days === null" koşulu hiç
+        // false olmaz ve kullanıcı hata mesajını hiç görmeden kalıcı bir
+        // yükleniyor simgesiyle baş başa kalır. days'i boş dizi yapmak
+        // "henüz gün eklemedin" boş-durum ekranını tetikler ama üstündeki
+        // kırmızı hata mesajı (error state) da aynı anda görünür olur,
+        // yani kullanıcı gerçek durumdan haberdar olur. silent (arka plan
+        // polling) çağrılarında dbReady/days zaten dolu olduğu için bu
+        // dallar çalışmaz, sadece ilk yüklemedeki gerçek hataları etkiler.
+        if (dbReady === null) {
+          setDbReady(true);
+        }
+        setDays((prev) => prev ?? []);
         if (!silent) {
           setError(e instanceof Error ? e.message : "Yüklenemedi");
         }
       }
     },
-    [user]
+    [user, dbReady]
   );
 
   // Önceden burada önce /api/init'e (checkInit) sonra /api/workout-days'e
