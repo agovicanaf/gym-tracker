@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, useRef, use } from "react";
 import Link from "next/link";
 import { Loader2, Flame, Weight, CalendarCheck, TrendingUp } from "lucide-react";
 import {
@@ -26,7 +26,7 @@ function StatCard({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: string | number;
   unit?: string;
 }) {
   return (
@@ -51,19 +51,36 @@ export default function AnalizPage({
   const { user } = use(params) as { user: User };
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<number | null>(null);
+  const [range, setRange] = useState<"30d" | "90d" | "all">("all");
   const [error, setError] = useState<string | null>(null);
+
+  // loadStats'ın her hareket seçiminde yeniden oluşup polling interval'ini
+  // gereksiz yere sıfırlamaması için selectedExercise'ın en güncel değerine
+  // bir ref üzerinden erişiyoruz (state'i doğrudan bağımlılığa koymak yerine).
+  const selectedExerciseRef = useRef(selectedExercise);
+  useEffect(() => {
+    selectedExerciseRef.current = selectedExercise;
+  }, [selectedExercise]);
 
   const loadStats = useCallback(
     (isFirstLoad: boolean) => {
       api
-        .getStats(user)
+        .getStats(user, range)
         .then((data) => {
           setStats(data);
           setError(null);
-          // Seçili hareket sekmesini sadece ilk yüklemede otomatik seçiyoruz;
-          // sonraki arka plan yenilemelerinde kullanıcının seçtiği sekmeyi
-          // (varsa) koruyoruz, yoksa her 2 saniyede bir ilk sekmeye zıplardı.
-          if (isFirstLoad && data.exerciseProgress.length > 0) {
+          // Seçili hareket sekmesi ya ilk yüklemede ya da seçili hareketin
+          // yeni aralıkta artık hiç kaydı kalmadığında (örn. "Son 30 Gün"e
+          // geçilince o hareket bu aralıkta yapılmamışsa) listenin ilk
+          // hareketine ayarlanır. Böylece "grafik için yeterli veri yok"
+          // gibi yanıltıcı bir mesaj yerine, kullanıcının gerçekten kaydı
+          // olan bir hareket otomatik seçilir. Arka plan polling'inde
+          // (isFirstLoad=false) kullanıcının seçimini koruruz, tabii
+          // seçim hâlâ geçerliyse.
+          const stillValid = data.exerciseProgress.some(
+            (ex) => ex.exercise_id === selectedExerciseRef.current
+          );
+          if ((isFirstLoad || !stillValid) && data.exerciseProgress.length > 0) {
             setSelectedExercise(data.exerciseProgress[0].exercise_id);
           }
         })
@@ -73,9 +90,12 @@ export default function AnalizPage({
           }
         });
     },
-    [user]
+    [user, range]
   );
 
+  // range değiştiğinde baştan yükle (ilk yükleme gibi davran: hata
+  // görünür olsun, seçili hareket sekmesi yeni listeye göre yeniden seçilsin
+  // — çünkü farklı bir aralıkta o hareketin hiç kaydı olmayabilir).
   useEffect(() => {
     loadStats(true);
   }, [loadStats]);
@@ -133,24 +153,50 @@ export default function AnalizPage({
         month: "2-digit",
       }),
       agirlik: Number(t.max_weight),
+      hacim: Math.round(Number(t.day_volume)),
     }));
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-8 py-6 sm:py-8 pb-12">
-      <div className="mb-6 sm:mb-8">
-        <p className="text-[11px] tracking-[0.2em] text-text-muted font-body mb-1">
-          ANALİZ PANELİ
-        </p>
-        <h1 className="font-display text-3xl sm:text-4xl text-text">
-          {USER_LABELS[user]}&apos;in İlerlemesi
-        </h1>
+      <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-[11px] tracking-[0.2em] text-text-muted font-body mb-1">
+            ANALİZ PANELİ
+          </p>
+          <h1 className="font-display text-3xl sm:text-4xl text-text">
+            {USER_LABELS[user]}&apos;in İlerlemesi
+          </h1>
+        </div>
+
+        <div className="flex items-center gap-1 bg-surface rounded-md p-1 shrink-0">
+          {(
+            [
+              { key: "30d", label: "30 Gün" },
+              { key: "90d", label: "90 Gün" },
+              { key: "all", label: "Tümü" },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setRange(opt.key)}
+              className={`px-3 py-2 sm:py-1.5 text-xs font-body font-medium rounded transition-colors ${
+                range === opt.key
+                  ? "bg-surface-raised text-text"
+                  : "text-text-muted hover:text-text"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {!hasData ? (
         <div className="text-center py-16 border border-dashed border-border rounded-lg">
           <p className="text-text-muted font-body text-sm mb-4">
-            Henüz kayıtlı veri yok. Program sayfasından set eklemeye başla,
-            burada analizini göreceksin.
+            {range === "all"
+              ? "Henüz kayıtlı veri yok. Program sayfasından set eklemeye başla, burada analizini göreceksin."
+              : "Bu tarih aralığında kayıtlı veri yok. Farklı bir aralık dene veya program sayfasından set ekle."}
           </p>
           <Link
             href={`/${user}`}
@@ -269,14 +315,30 @@ export default function AnalizPage({
                       domain={["dataMin - 5", "dataMax + 5"]}
                     />
                     <Tooltip
-                      contentStyle={{
-                        background: "#1c1c1f",
-                        border: "1px solid #2a2a2e",
-                        borderRadius: 8,
-                        fontSize: 12,
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || payload.length === 0) return null;
+                        const point = payload[0].payload as {
+                          agirlik: number;
+                          hacim: number;
+                        };
+                        return (
+                          <div
+                            style={{
+                              background: "#1c1c1f",
+                              border: "1px solid #2a2a2e",
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                              fontSize: 12,
+                            }}
+                          >
+                            <p style={{ color: "#f5f5f4", marginBottom: 4 }}>{label}</p>
+                            <p style={{ color: "#dc2626" }}>Max: {point.agirlik} kg</p>
+                            <p style={{ color: "#a1a1aa" }}>
+                              Günlük hacim: {point.hacim.toLocaleString("tr-TR")} kg
+                            </p>
+                          </div>
+                        );
                       }}
-                      labelStyle={{ color: "#f5f5f4" }}
-                      formatter={(value) => [`${value} kg`, "Max Ağırlık"]}
                     />
                     <Line
                       type="monotone"
@@ -301,27 +363,35 @@ export default function AnalizPage({
           <div>
             <h2 className="font-display text-2xl text-text mb-3">Hareket Özeti</h2>
             <div className="space-y-1.5">
-              {stats.exerciseProgress.map((ex) => (
-                <div
-                  key={ex.exercise_id}
-                  className="flex items-center justify-between border border-border rounded-lg bg-surface px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-body font-medium text-text">
-                      {ex.exercise_name}
-                    </p>
-                    <p className="text-xs text-text-faint mt-0.5">
-                      {ex.total_sets_logged} set kaydedildi
-                    </p>
+              {stats.exerciseProgress.map((ex) => {
+                const isSameAsLatest = ex.latest_weight === ex.max_weight;
+                return (
+                  <div
+                    key={ex.exercise_id}
+                    className="flex items-center justify-between border border-border rounded-lg bg-surface px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-body font-medium text-text truncate">
+                        {ex.exercise_name}
+                      </p>
+                      <p className="text-xs text-text-faint mt-0.5">
+                        {ex.total_sets_logged} set kaydedildi
+                        {!isSameAsLatest && (
+                          <span> · son: {ex.latest_weight}kg</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 pl-3">
+                      <p className="font-display text-xl text-accent leading-none">
+                        {ex.max_weight}kg
+                      </p>
+                      <p className="text-[10px] text-text-faint mt-1">
+                        {isSameAsLatest ? "GÜNCEL EN İYİ" : "EN İYİ"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-display text-xl text-accent leading-none">
-                      {ex.max_weight}kg
-                    </p>
-                    <p className="text-[10px] text-text-faint mt-1">EN İYİ</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>

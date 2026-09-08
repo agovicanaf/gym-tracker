@@ -101,6 +101,8 @@ export const api = {
   deleteSetLog: (id: number) =>
     fetch(`/api/set-logs/${id}`, { method: "DELETE" }).then((r) => handle(r)),
 
-  getStats: (user: string) =>
-    fetch(`/api/stats?user=${user}`).then((r) => handle<StatsResponse>(r)),
+  getStats: (user: string, range: "30d" | "90d" | "all" = "all") =>
+    fetch(`/api/stats?user=${user}&range=${range}`).then((r) =>
+      handle<StatsResponse>(r)
+    ),
 };

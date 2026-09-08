@@ -3,17 +3,41 @@ import { getSql, isValidUser } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/stats?user=omer
-// Analiz paneli için: genel özet + hareket bazlı ilerleme + PR listesi
+// Desteklenen tarih aralığı seçenekleri. "all" için cutoff yok (en eski tarih).
+const RANGE_DAYS: Record<string, number | null> = {
+  "30d": 30,
+  "90d": 90,
+  all: null,
+};
+
+// GET /api/stats?user=omer&range=30d|90d|all  (range verilmezse "all" varsayılan)
+// Analiz paneli için: genel özet + hareket bazlı ilerleme + zaman serisi.
+// Seçilen aralık TÜM metrikleri etkiler — "en ağır kaldırış" da dahil,
+// çünkü kullanıcı "son 30 günde ne kaldırdım" sorusuna cevap arıyor,
+// tüm-zamanların-rekoru ayrı bir kavram değil (kasıtlı tasarım kararı).
 export async function GET(req: NextRequest) {
   const user = req.nextUrl.searchParams.get("user") ?? "";
   if (!isValidUser(user)) {
     return NextResponse.json({ error: "Geçersiz kullanıcı" }, { status: 400 });
   }
 
+  const rangeParam = req.nextUrl.searchParams.get("range") ?? "all";
+  if (!(rangeParam in RANGE_DAYS)) {
+    return NextResponse.json({ error: "Geçersiz range parametresi" }, { status: 400 });
+  }
+  const rangeDays = RANGE_DAYS[rangeParam];
+
+  // "all" seçiliyken cutoff'u çok eski bir tarihe sabitliyoruz (WHERE
+  // logged_at >= cutoff her zaman true olsun diye) — bu sayede tüm
+  // sorgularda tek bir ortak WHERE deseni kullanabiliyoruz, range'e göre
+  // ayrı sorgu dalları yazmaya gerek kalmıyor.
+  const cutoff = rangeDays
+    ? new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString()
+    : new Date(0).toISOString();
+
   const sql = getSql();
 
-  // Genel özet
+  // Genel özet — seçilen aralıktaki kayıtlara göre
   const summaryResult = await sql`
     SELECT
       COUNT(DISTINCT DATE(logged_at)) as total_sessions,
@@ -21,10 +45,11 @@ export async function GET(req: NextRequest) {
       COALESCE(SUM(weight_kg * reps), 0) as total_volume_kg,
       COALESCE(MAX(weight_kg), 0) as heaviest_lift
     FROM set_logs
-    WHERE user_id = ${user}
+    WHERE user_id = ${user} AND logged_at >= ${cutoff}
   `;
 
-  // Hareket bazlı: her hareketin en son ve en yüksek (1RM tahmini yerine ham max) ağırlığı
+  // Hareket bazlı: seçilen aralıktaki en yüksek ağırlık, en son yapılan
+  // ağırlık + tarihi, ve set sayısı.
   const exerciseProgress = await sql`
     SELECT
       e.id as exercise_id,
@@ -35,12 +60,12 @@ export async function GET(req: NextRequest) {
       MAX(sl.logged_at) as last_logged
     FROM exercises e
     JOIN set_logs sl ON sl.exercise_id = e.id
-    WHERE sl.user_id = ${user}
+    WHERE sl.user_id = ${user} AND sl.logged_at >= ${cutoff}
     GROUP BY e.id, e.name
     ORDER BY last_logged DESC
   `;
 
-  // Zaman serisi: her hareket için tarih bazlı max ağırlık (grafik için)
+  // Zaman serisi: her hareket için tarih bazlı max ağırlık + günlük hacim (grafik için)
   const timeSeries = await sql`
     SELECT
       e.id as exercise_id,
@@ -50,18 +75,22 @@ export async function GET(req: NextRequest) {
       SUM(sl.weight_kg * sl.reps) as day_volume
     FROM exercises e
     JOIN set_logs sl ON sl.exercise_id = e.id
-    WHERE sl.user_id = ${user}
+    WHERE sl.user_id = ${user} AND sl.logged_at >= ${cutoff}
     GROUP BY e.id, e.name, DATE(sl.logged_at)
     ORDER BY log_date ASC
   `;
 
-  // Son 8 hafta toplam hacim (haftalık) - genel trend grafiği
+  // Haftalık toplam hacim trendi — seçilen aralığa göre, "all" seçiliyken
+  // grafiğin aşırı uzayıp okunaksızlaşmaması için yine de son 16 haftayla
+  // sınırlıyoruz (bu, cutoff'tan bağımsız ayrı bir üst sınır).
   const weeklyVolume = await sql`
     SELECT
       DATE_TRUNC('week', logged_at) as week_start,
       SUM(weight_kg * reps) as total_volume
     FROM set_logs
-    WHERE user_id = ${user} AND logged_at > now() - interval '16 weeks'
+    WHERE user_id = ${user}
+      AND logged_at >= ${cutoff}
+      AND logged_at > now() - interval '16 weeks'
     GROUP BY week_start
     ORDER BY week_start ASC
   `;
